@@ -1,22 +1,25 @@
 
-
+#echo on
 usage() { echo "usage" 1>&2; exit 1; }
 
 change_file_endings()
 {
-change_count=0
-for file in $3*.$1 ; do
-    echo "renamed "$file" to "${file%.$1}.$2""
-    $4 mv "$file" "${file%.$1}.$2"
-    echo "changed includes"
-    ./include_change.pl ${file} ${file%.$1}.$2 
-    change_count=$((${change_count} + 1 ))
-done
-echo "changed ${change_count} files in folder $3"
+    echo "renamed $1 to $2"
+    $3 mv -- "$1" "$2"
 }
+
+fix_includes(){
+    export include_string_old=$1
+    export include_string_new=$2
+    export dir=$3
+    
+    perl -e 'print "    Changing includes for: $ENV{'include_string_old'} \/ $ENV{'include_string_new'} in $ENV{dir}*.cpp $ENV{dir}*.hpp \n"'
+    perl -W -p -i  -e "s[$include_string_old][$include_string_new]g" $dir*.cpp $dir*.hpp $dir*.c $dir*.h Makefile.am
+}
+    
 # sets option so that if the patterns are not found it will not be used as literal string
 shopt -s nullglob
-recursive=false
+recursive=false""
 git=""
 only_subdirs=false
 while getopts "rgi" o; do
@@ -36,48 +39,44 @@ while getopts "rgi" o; do
             ;;
     esac
 done
+
 shift $((OPTIND -1))
+export old_name_extension=$1
+export new_name_extension=$2
+echo ${old_name_extension} ${new_name_extension}
 if [ ${only_subdirs} == false ] 
 then
-    change_file_endings $1 $2 "" ${git}
+    echo "=============starting============="
+    change_count=0
+    for file in *.${old_name_extension} ; do
+        export old_name=${file}
+        export new_name="${file%.${old_name_extension}}.${new_name_extension}"
+         echo "renamed ${old_name} to ${new_name}" ""
+        ${git} mv "${old_name}" "${new_name}" 
+        fix_includes ${old_name} ${new_name} ""
+        change_count=$((${change_count} + 1 ))
+    done
+    echo "  changed ${change_count} files in folder "
 fi
 if [ ${recursive} == true ]
 then
+    echo "========starting recursive========"
+    current_dir=""
     for dir in */ ; do
-        echo ${dir}
-        change_file_endings $1 $2 ${dir} ${git}
+        export current_dir=$dir
+        echo ${current_dir}
+        for file in ${dir}*.${old_name_extension} ; do
+            export old_name=${file}
+            export new_name="${file%.${old_name_extension}}.${new_name_extension}"
+            echo "renamed ${old_name} to ${new_name}"
+            ${git} mv "${old_name}" "${new_name}"       
+            echo ${current_dir}
+            fix_includes "${old_name##*/}" "${new_name##*/}" ${current_dir}
+            fix_includes ${old_name} ${new_name} ""
+
+            change_count=$((${change_count} + 1 ))
+        done
+    echo "  changed ${change_count} files in folder ${dir}"
     done
 fi
-##clipping folder
-#for file in clipping/*.c
-#do
-#    git mv -- "$file" "${file%.c}.cpp"
-#done
-#
-#for file in clipping/*.h
-#do
-#    git mv -- "$file" "${file%.h}.hpp"
-#done 
-#
-##kdtree folder
-#for file in kdtreelib/*.c
-#do
-#    git mv -- "$file" "${file%.c}.cpp"
-#done
-#
-#for file in kdtreelib/*.h
-#do
-#    git mv -- "$file" "${file%.h}.hpp"
-#done 
-#
-##json folder
-#for file in json/*.c
-#do
-#    git mv -- "$file" "${file%.c}.cpp"
-#done
-#
-#for file in json/*.h
-#do
-#    git mv -- "$file" "${file%.h}.hpp"
-#done 
-#
+
